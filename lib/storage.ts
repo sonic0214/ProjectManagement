@@ -16,6 +16,13 @@ export interface Project {
     role: string
     email?: string
   }
+  assignees?: Array<{
+    id: string
+    name: string
+    avatar: string
+    role: string
+    email?: string
+  }>
   team: {
     [key: string]: {
       name: string

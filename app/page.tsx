@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -45,6 +45,9 @@ import { useProjects, useProjectFilters } from "@/hooks/use-projects"
 import { Project } from "@/lib/storage"
 import { TeamManagement } from "@/components/team-management"
 import { DataExport } from "@/components/data-export"
+import { InlineEdit } from "@/components/inline-edit"
+import { TeamSelector } from "@/components/team-selector"
+import { ResizableTable, ResizableTableCell } from "@/components/resizable-table"
 
 // 旧的静态数据已移动到storage.ts中作为默认数据
 const oldStaticProjects = [
@@ -273,6 +276,23 @@ const availableTags = [
 ]
 const availableCategories = ["产品开发", "技术重构", "数据平台", "系统优化", "基础设施"]
 
+// 表格列配置
+const defaultColumns = [
+  { id: "expand", title: "", width: 40, minWidth: 40, maxWidth: 40 },
+  { id: "info", title: "项目信息", width: 250, minWidth: 200, maxWidth: 400 },
+  { id: "category", title: "分类", width: 120, minWidth: 100, maxWidth: 180 },
+  { id: "tags", title: "标签", width: 150, minWidth: 120, maxWidth: 200 },
+  { id: "status", title: "状态", width: 100, minWidth: 80, maxWidth: 120 },
+  { id: "progress_daily", title: "每日进展", width: 300, minWidth: 250, maxWidth: 400 },
+  { id: "priority", title: "优先级", width: 80, minWidth: 60, maxWidth: 100 },
+  { id: "progress", title: "进度", width: 100, minWidth: 80, maxWidth: 120 },
+  { id: "assignees", title: "项目负责人", width: 200, minWidth: 150, maxWidth: 300 },
+  { id: "milestones", title: "关键节点", width: 250, minWidth: 200, maxWidth: 350 },
+  { id: "timeline", title: "时间周期", width: 120, minWidth: 100, maxWidth: 150 },
+  { id: "risks", title: "风险", width: 100, minWidth: 80, maxWidth: 120 },
+  { id: "actions", title: "操作", width: 120, minWidth: 100, maxWidth: 150 }
+]
+
 const getStatusColor = (status: string) => {
   switch (status) {
     case "PRD评审":
@@ -363,6 +383,7 @@ export default function ProjectManagement() {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [editForm, setEditForm] = useState<Partial<Project>>({})
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false)
+  const [tableColumns, setTableColumns] = useState(defaultColumns)
 
   // 过滤逻辑现在在useProjectFilters hook中处理
 
@@ -416,6 +437,13 @@ export default function ProjectManagement() {
     if (editForm.tags) {
       setEditForm({ ...editForm, tags: editForm.tags.filter((t: string) => t !== tag) })
     }
+  }
+
+  // 列宽调整处理函数
+  const handleColumnResize = (columnId: string, width: number) => {
+    setTableColumns(prev => prev.map(col => 
+      col.id === columnId ? { ...col, width } : col
+    ))
   }
 
   // 新建项目函数
@@ -573,30 +601,15 @@ export default function ProjectManagement() {
             {/* 多维表格 */}
             <Card>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50">
-                        <TableHead className="w-8"></TableHead>
-                        <TableHead className="min-w-[200px]">项目信息</TableHead>
-                        <TableHead className="w-[100px]">分类</TableHead>
-                        <TableHead className="min-w-[150px]">标签</TableHead>
-                        <TableHead className="w-[100px]">状态</TableHead>
-                        <TableHead className="min-w-[300px]">每日进展</TableHead>
-                        <TableHead className="w-[80px]">优先级</TableHead>
-                        <TableHead className="w-[100px]">进度</TableHead>
-                        <TableHead className="w-[120px]">项目负责人</TableHead>
-                        <TableHead className="min-w-[250px]">关键节点</TableHead>
-                        <TableHead className="w-[120px]">时间周期</TableHead>
-                        <TableHead className="w-[100px]">风险</TableHead>
-                        <TableHead className="w-[120px]">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProjects.map((project) => (
-                        <>
-                          <TableRow key={project.id} className="hover:bg-gray-50">
-                            <TableCell>
+                <ResizableTable 
+                  columns={tableColumns}
+                  onColumnResize={handleColumnResize}
+                  className="overflow-x-auto"
+                >
+                  {filteredProjects.map((project) => (
+                    <>
+                      <TableRow key={project.id} className="hover:bg-gray-50">
+                            <ResizableTableCell columnId="expand" columns={tableColumns}>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -609,120 +622,110 @@ export default function ProjectManagement() {
                                   <ChevronRight className="h-4 w-4" />
                                 )}
                               </Button>
-                            </TableCell>
-                            <TableCell>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="info" columns={tableColumns}>
                               <div className="space-y-1">
-                                <Link
-                                  href={`/project/${project.id}`}
-                                  className="font-medium text-sm hover:text-blue-600"
-                                >
-                                  {project.name}
-                                </Link>
-                                <p className="text-xs text-gray-600 line-clamp-2">{project.description}</p>
+                                <InlineEdit
+                                  value={project.name}
+                                  type="text"
+                                  onSave={(value) => updateProject(project.id, { name: value as string })}
+                                  className="font-medium text-sm"
+                                  maxLength={100}
+                                />
+                                <InlineEdit
+                                  value={project.description}
+                                  type="textarea"
+                                  onSave={(value) => updateProject(project.id, { description: value as string })}
+                                  className="text-xs text-gray-600"
+                                  placeholder="添加项目描述"
+                                  maxLength={500}
+                                />
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">
-                                {project.category}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {project.tags.slice(0, 2).map((tag) => (
-                                  <Badge key={tag} variant="secondary" className="text-xs px-1.5 py-0.5">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                                {project.tags.length > 2 && (
-                                  <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
-                                    +{project.tags.length - 2}
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={`${getStatusColor(project.status)} text-xs`}>{project.status}</Badge>
-                            </TableCell>
-                            <TableCell>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="category" columns={tableColumns}>
+                              <InlineEdit
+                                value={project.category}
+                                type="select"
+                                options={availableCategories}
+                                onSave={(value) => updateProject(project.id, { category: value as string })}
+                                className="text-xs"
+                              />
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="tags" columns={tableColumns}>
+                              <InlineEdit
+                                value={project.tags}
+                                type="tags"
+                                options={availableTags}
+                                onSave={(value) => updateProject(project.id, { tags: value as string[] })}
+                                className="text-xs"
+                                placeholder="添加标签"
+                              />
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="status" columns={tableColumns}>
+                              <InlineEdit
+                                value={project.status}
+                                type="select"
+                                options={["PRD评审", "技术评审", "技术开发", "联调", "测试", "上线"]}
+                                onSave={(value) => updateProject(project.id, { status: value as string })}
+                                className="text-xs"
+                                variant="status"
+                                getDisplayColor={getStatusColor}
+                              />
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="progress_daily" columns={tableColumns}>
                               <div className="space-y-1">
-                                <div className="text-xs text-gray-700 line-clamp-2 max-w-[280px]">
-                                  {project.dailyProgress}
+                                <div className="w-full">
+                                  <InlineEdit
+                                    value={project.dailyProgress}
+                                    type="textarea"
+                                    onSave={(value) => updateProject(project.id, { 
+                                      dailyProgress: value as string,
+                                      lastUpdate: new Date().toISOString().split('T')[0]
+                                    })}
+                                    className="text-xs text-gray-700 w-full"
+                                    placeholder="点击添加每日进展..."
+                                    maxLength={1000}
+                                    autoSaveOnBlur={true}
+                                    showSaveButtons={false}
+                                  />
                                 </div>
                                 <div className="flex items-center gap-1 text-xs text-gray-500">
                                   <Clock className="w-3 h-3" />
                                   <span>更新: {project.lastUpdate}</span>
                                 </div>
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={`${getPriorityColor(project.priority)} text-xs`}>
-                                {project.priority}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="priority" columns={tableColumns}>
+                              <InlineEdit
+                                value={project.priority}
+                                type="select"
+                                options={["高", "中", "低"]}
+                                onSave={(value) => updateProject(project.id, { priority: value as string })}
+                                className="text-xs"
+                                variant="priority"
+                                getDisplayColor={getPriorityColor}
+                              />
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="progress" columns={tableColumns}>
                               <div className="space-y-1">
                                 <Progress value={project.progress} className="h-2" />
                                 <span className="text-xs text-gray-600">{project.progress}%</span>
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button variant="ghost" className="h-auto p-1 hover:bg-gray-100">
-                                    <div className="flex items-center gap-2">
-                                      <Avatar className="w-6 h-6">
-                                        <AvatarImage src={project.owner.avatar || "/placeholder.svg"} />
-                                        <AvatarFallback className="text-xs">{project.owner.name[0]}</AvatarFallback>
-                                      </Avatar>
-                                      <div className="text-left">
-                                        <div className="text-xs font-medium">{project.owner.name}</div>
-                                        <div className="text-xs text-gray-500">{project.owner.role}</div>
-                                      </div>
-                                      <Users className="w-3 h-3 text-gray-400" />
-                                    </div>
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80" align="start">
-                                  <div className="space-y-3">
-                                    <h4 className="font-medium text-sm">团队分工详情</h4>
-                                    <div className="space-y-2">
-                                      {Object.entries(project.team).map(([role, member]) => (
-                                        <div
-                                          key={role}
-                                          className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <Avatar className="w-6 h-6">
-                                              <AvatarImage src={member.avatar || "/placeholder.svg"} />
-                                              <AvatarFallback className="text-xs">{member.name[0]}</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                              <div className="text-xs font-medium">{member.name}</div>
-                                              <div className="text-xs text-gray-500">
-                                                {role === "product"
-                                                  ? "产品经理"
-                                                  : role === "frontend"
-                                                    ? "前端开发"
-                                                    : role === "backend"
-                                                      ? "后端开发"
-                                                      : role === "data"
-                                                        ? "数据工程师"
-                                                        : "测试工程师"}
-                                              </div>
-                                            </div>
-                                          </div>
-                                          <div className="text-right">
-                                            <div className="text-xs font-medium">{member.progress}%</div>
-                                            <div className="text-xs text-gray-500">工作量: {member.workload}</div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            </TableCell>
-                            <TableCell>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="assignees" columns={tableColumns}>
+                              <div className="w-full">
+                                <TeamSelector 
+                                  selectedMembers={project.assignees || []}
+                                  onMembersChange={(members) => {
+                                    updateProject(project.id, { assignees: members })
+                                  }}
+                                  placeholder="分配负责人"
+                                  maxMembers={5}
+                                  className="w-full"
+                                />
+                              </div>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="milestones" columns={tableColumns}>
                               <div className="grid grid-cols-3 gap-1 text-xs">
                                 <div className="text-center">
                                   <div className="flex items-center justify-center gap-1">
@@ -746,8 +749,8 @@ export default function ProjectManagement() {
                                   <div className="text-gray-500">{project.milestones.launch.plannedDate}</div>
                                 </div>
                               </div>
-                            </TableCell>
-                            <TableCell>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="timeline" columns={tableColumns}>
                               <div className="text-xs space-y-1">
                                 <div className="flex items-center gap-1">
                                   <Calendar className="w-3 h-3" />
@@ -760,8 +763,8 @@ export default function ProjectManagement() {
                                 </div>
                                 <div className="text-gray-600">{project.endDate}</div>
                               </div>
-                            </TableCell>
-                            <TableCell>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="risks" columns={tableColumns}>
                               <div className="space-y-1">
                                 {project.risks.length > 0 ? (
                                   project.risks.map((risk, index) => (
@@ -774,8 +777,8 @@ export default function ProjectManagement() {
                                   <span className="text-xs text-green-600">无风险</span>
                                 )}
                               </div>
-                            </TableCell>
-                            <TableCell>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="actions" columns={tableColumns}>
                               <div className="flex flex-col gap-1">
                                 <Dialog>
                                   <DialogTrigger asChild>
@@ -840,122 +843,133 @@ export default function ProjectManagement() {
                                   编辑
                                 </Button>
                               </div>
-                            </TableCell>
+                            </ResizableTableCell>
                           </TableRow>
 
-                          {/* 展开的详细信息 */}
-                          {expandedRows.has(project.id) && (
-                            <TableRow>
-                              <TableCell colSpan={13} className="bg-gray-50 p-0">
-                                <Collapsible open={expandedRows.has(project.id)}>
-                                  <CollapsibleContent>
-                                    <div className="p-4 space-y-4">
-                                      {/* 详细里程碑 */}
-                                      <div>
-                                        <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                                          <Target className="w-4 h-4" />
-                                          详细里程碑
-                                        </h4>
-                                        <div className="grid grid-cols-6 gap-3">
-                                          {Object.entries(project.milestones).map(([key, milestone]) => {
-                                            const milestoneNames = {
-                                              prd: "PRD评审",
-                                              techReview: "技术评审",
-                                              development: "技术开发",
-                                              integration: "联调",
-                                              testing: "测试",
-                                              launch: "上线",
-                                            }
-                                            return (
-                                              <div key={key} className="bg-white p-2 rounded border">
-                                                <div className="flex items-center gap-1 mb-1">
-                                                  <span>{getMilestoneIcon(milestone.status)}</span>
-                                                  <span className="text-xs font-medium">
-                                                    {milestoneNames[key as keyof typeof milestoneNames]}
-                                                  </span>
-                                                </div>
-                                                <div className="text-xs text-gray-600 space-y-1">
-                                                  <div>计划: {milestone.plannedDate}</div>
-                                                  {milestone.date && <div>实际: {milestone.date}</div>}
-                                                  <div>负责: {milestone.owner}</div>
-                                                </div>
-                                              </div>
-                                            )
-                                          })}
-                                        </div>
-                                      </div>
-
-                                      {/* 需求列表 */}
-                                      <div>
-                                        <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                                          <Users className="w-4 h-4" />
-                                          需求列表
-                                        </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                          {project.requirements.map((req) => (
-                                            <div key={req.id} className="bg-white p-3 rounded border">
-                                              <div className="flex items-start justify-between mb-2">
-                                                <h5 className="text-xs font-medium">{req.title}</h5>
-                                                <Badge className={`${getStatusColor(req.status)} text-xs`}>
-                                                  {req.status}
-                                                </Badge>
-                                              </div>
-                                              <div className="space-y-1 text-xs text-gray-600">
-                                                <div className="flex justify-between">
-                                                  <span>优先级:</span>
-                                                  <Badge className={`${getPriorityColor(req.priority)} text-xs`}>
-                                                    {req.priority}
-                                                  </Badge>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                  <span>负责人:</span>
-                                                  <span>{req.assignee}</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                  <span>进度:</span>
-                                                  <span>{req.progress}%</span>
-                                                </div>
-                                                <Progress value={req.progress} className="h-1 mt-1" />
-                                              </div>
+                      {/* 展开的详细信息 */}
+                      {expandedRows.has(project.id) && (
+                        <TableRow>
+                          <TableCell colSpan={13} className="bg-gray-50 p-0">
+                            <Collapsible open={expandedRows.has(project.id)}>
+                              <CollapsibleContent>
+                                <div className="p-4 space-y-4">
+                                  {/* 详细里程碑 */}
+                                  <div>
+                                    <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                                      <Target className="w-4 h-4" />
+                                      详细里程碑
+                                    </h4>
+                                    <div className="grid grid-cols-6 gap-3">
+                                      {Object.entries(project.milestones).map(([key, milestone]) => {
+                                        const milestoneNames = {
+                                          prd: "PRD评审",
+                                          techReview: "技术评审",
+                                          development: "技术开发",
+                                          integration: "联调",
+                                          testing: "测试",
+                                          launch: "上线",
+                                        }
+                                        return (
+                                          <div key={key} className="bg-white p-2 rounded border">
+                                            <div className="flex items-center gap-1 mb-1">
+                                              <span>{getMilestoneIcon(milestone.status)}</span>
+                                              <span className="text-xs font-medium">
+                                                {milestoneNames[key as keyof typeof milestoneNames]}
+                                              </span>
                                             </div>
-                                          ))}
-                                        </div>
-                                      </div>
+                                            <div className="text-xs text-gray-600 space-y-1">
+                                              <div>计划: {milestone.plannedDate}</div>
+                                              {milestone.date && <div>实际: {milestone.date}</div>}
+                                              <div>负责: {milestone.owner}</div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
 
-                                      {/* 风险详情 */}
-                                      {project.risks.length > 0 && (
-                                        <div>
-                                          <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                                            <AlertTriangle className="w-4 h-4" />
-                                            风险详情
-                                          </h4>
-                                          <div className="space-y-2">
-                                            {project.risks.map((risk, index) => (
-                                              <div
-                                                key={index}
-                                                className="bg-white p-2 rounded border flex items-center gap-2"
-                                              >
-                                                <AlertTriangle className={`w-4 h-4 ${getRiskColor(risk.level)}`} />
-                                                <span className={`text-xs font-medium ${getRiskColor(risk.level)}`}>
-                                                  {risk.level}风险:
-                                                </span>
-                                                <span className="text-xs text-gray-700">{risk.description}</span>
-                                              </div>
-                                            ))}
+                                  {/* 需求列表 */}
+                                  <div>
+                                    <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                                      <Users className="w-4 h-4" />
+                                      需求列表
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                      {project.requirements.map((req) => (
+                                        <div key={req.id} className="bg-white p-3 rounded border">
+                                          <div className="flex items-start justify-between mb-2">
+                                            <h5 className="text-xs font-medium">{req.title}</h5>
+                                            <Badge className={`${getStatusColor(req.status)} text-xs`}>
+                                              {req.status}
+                                            </Badge>
+                                          </div>
+                                          <div className="space-y-1 text-xs text-gray-600">
+                                            <div className="flex justify-between">
+                                              <span>优先级:</span>
+                                              <Badge className={`${getPriorityColor(req.priority)} text-xs`}>
+                                                {req.priority}
+                                              </Badge>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span>负责人:</span>
+                                              <span>{req.assignee}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span>进度:</span>
+                                              <span>{req.progress}%</span>
+                                            </div>
+                                            <Progress value={req.progress} className="h-1 mt-1" />
                                           </div>
                                         </div>
-                                      )}
+                                      ))}
                                     </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                                  </div>
+
+                                  {/* 风险详情 */}
+                                  {project.risks.length > 0 && (
+                                    <div>
+                                      <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4" />
+                                        风险详情
+                                      </h4>
+                                      <div className="space-y-2">
+                                        {project.risks.map((risk, index) => (
+                                          <div
+                                            key={index}
+                                            className="bg-white p-2 rounded border flex items-center gap-2"
+                                          >
+                                            <AlertTriangle className={`w-4 h-4 ${getRiskColor(risk.level)}`} />
+                                            <span className={`text-xs font-medium ${getRiskColor(risk.level)}`}>
+                                              {risk.level}风险:
+                                            </span>
+                                            <span className="text-xs text-gray-700">{risk.description}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  ))}
+                  {/* 新建项目行 */}
+                  <TableRow className="hover:bg-blue-50 border-t-2 border-blue-200">
+                    <TableCell colSpan={13} className="text-center py-4">
+                      <Button
+                        variant="ghost"
+                        className="w-full h-12 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        onClick={handleCreateProject}
+                      >
+                        <Plus className="w-5 h-5 mr-2" />
+                        新建项目
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                </ResizableTable>
               </CardContent>
             </Card>
           </TabsContent>
